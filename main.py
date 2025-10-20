@@ -1594,7 +1594,6 @@ async def api_get_products(session: AsyncSession = Depends(get_db_session), user
 
 @app.get("/admin/order/new", response_class=HTMLResponse)
 async def get_add_order_form(username: str = Depends(check_credentials)):
-    # ИСПРАВЛЕНО: Создаем безопасный объект для передачи в JS
     initial_data = {
         "items": {},
         "action": "/api/admin/order/new",
@@ -1603,7 +1602,11 @@ async def get_add_order_form(username: str = Depends(check_credentials)):
     }
     script_data_injection = f"""
     <script>
-        window.initialOrderData = {json.dumps(initial_data)};
+        document.addEventListener('DOMContentLoaded', () => {{
+            if (window.initializeForm) {{
+                window.initializeForm({json.dumps(initial_data)});
+            }}
+        }});
     </script>
     """
     body = ADMIN_ORDER_FORM_BODY + script_data_injection
@@ -1623,7 +1626,6 @@ async def get_edit_order_form(order_id: int, session: AsyncSession = Depends(get
             if p := db_products_map.get(name):
                 initial_items[p.id] = {"name": p.name, "price": p.price, "quantity": quantity}
 
-    # ИСПРАВЛЕНО: Создаем безопасный объект для передачи в JS
     initial_data = {
         "items": initial_items,
         "action": f"/api/admin/order/edit/{order_id}",
@@ -1635,12 +1637,16 @@ async def get_edit_order_form(order_id: int, session: AsyncSession = Depends(get
             "address": order.address or ""
         }
     }
-    script_data_injection = f"""
+    script_injection = f"""
     <script>
-        window.initialOrderData = {json.dumps(initial_data)};
+        document.addEventListener('DOMContentLoaded', () => {{
+            if (window.initializeForm) {{
+                window.initializeForm({json.dumps(initial_data)});
+            }}
+        }});
     </script>
     """
-    body = ADMIN_ORDER_FORM_BODY + script_data_injection
+    body = ADMIN_ORDER_FORM_BODY + script_injection
     return HTMLResponse(ADMIN_HTML_TEMPLATE.format(title=f"Редагування замовлення #{order.id}", body=body, orders_active="active", **{k: "" for k in ["clients_active", "main_active", "products_active", "categories_active", "statuses_active", "settings_active", "employees_active", "reports_active", "menu_active"]}))
 
 
@@ -1658,32 +1664,37 @@ async def _process_and_save_order(order: Order, data: dict, session: AsyncSessio
     order.address = data.get("address") if order.is_delivery else None
 
     items_from_js = data.get("items", {})
-    
+
     if not items_from_js:
         order.products = ""
         order.total_price = 0
     else:
         product_ids = [int(pid) for pid in items_from_js.keys()]
-        products_res = await session.execute(sa.select(Product).where(Product.id.in_(product_ids)))
-        db_products_map = {p.id: p for p in products_res.scalars().all()}
+        if not product_ids:
+            order.products = ""
+            order.total_price = 0
+        else:
+            products_res = await session.execute(sa.select(Product).where(Product.id.in_(product_ids)))
+            db_products_map = {p.id: p for p in products_res.scalars().all()}
 
-        total_price = 0
-        product_strings = []
+            total_price = 0
+            product_strings = []
 
-        for pid_str, item_data in items_from_js.items():
-            pid = int(pid_str)
-            if product := db_products_map.get(pid):
-                quantity = item_data.get('quantity', 0)
-                if quantity > 0:
-                    total_price += product.price * quantity
-                    product_strings.append(f"{product.name} x {quantity}")
-        
-        order.products = ", ".join(product_strings)
-        order.total_price = total_price
+            for pid_str, item_data in items_from_js.items():
+                pid = int(pid_str)
+                if product := db_products_map.get(pid):
+                    quantity = int(item_data.get('quantity', 0))
+                    if quantity > 0:
+                        total_price += product.price * quantity
+                        product_strings.append(f"{product.name} x {quantity}")
+
+            order.products = ", ".join(product_strings)
+            order.total_price = total_price
 
     if is_new_order:
         session.add(order)
-        order.status_id = 1 
+        if not order.status_id:
+            order.status_id = 1
 
     await session.commit()
     await session.refresh(order)
@@ -1696,7 +1707,7 @@ async def _process_and_save_order(order: Order, data: dict, session: AsyncSessio
         )
         session.add(history_entry)
         await session.commit()
-        
+
         admin_bot = dp_admin.get("bot_instance")
         if admin_bot:
             try:
@@ -1704,7 +1715,6 @@ async def _process_and_save_order(order: Order, data: dict, session: AsyncSessio
                 logging.info(f"Сповіщення для нового веб-адмін замовлення #{order.id} надіслано успішно.")
             except Exception as e:
                 logging.error(f"Не вдалося надіслати сповіщення для нового веб-адмін замовлення #{order.id}: {e}")
-
 
 @app.post("/api/admin/order/new", response_class=JSONResponse)
 async def api_create_order(request: Request, session: AsyncSession = Depends(get_db_session), username: str = Depends(check_credentials)):
