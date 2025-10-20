@@ -452,9 +452,9 @@ ADMIN_ORDER_FORM_BODY = """
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {{
+document.addEventListener('DOMContentLoaded', () => {
     // State
-    let orderItems = {{}}; 
+    let orderItems = {};
     let allProducts = [];
 
     // Element References
@@ -468,196 +468,210 @@ document.addEventListener('DOMContentLoaded', () => {{
     const closeModalBtn = document.getElementById('close-modal-btn');
     const productListContainer = document.getElementById('product-list');
     const productSearchInput = document.getElementById('product-search-input');
-    
+
     // API Function
-    const fetchAllProducts = async () => {{
-        try {{
+    const fetchAllProducts = async () => {
+        try {
             const response = await fetch('/api/admin/products');
             if (!response.ok) throw new Error('Failed to fetch products');
             return await response.json();
-        }} catch (error) {{
+        } catch (error) {
             console.error("Fetch products error:", error);
             alert('Помилка мережі при завантаженні страв.');
             return [];
-        }}
-    }};
-    
-    // Core Logic
-    const calculateTotals = () => {{
-        let currentTotal = 0;
-        for (const id in orderItems) {{
-            currentTotal += orderItems[id].price * orderItems[id].quantity;
-        }}
-        grandTotalEl.textContent = currentTotal.toFixed(2);
-    }};
+        }
+    };
 
-    const renderOrderItems = () => {{
+    // Core Logic
+    const calculateTotals = () => {
+        let currentTotal = 0;
+        for (const id in orderItems) {
+            currentTotal += orderItems[id].price * orderItems[id].quantity;
+        }
+        grandTotalEl.textContent = currentTotal.toFixed(2);
+    };
+
+    const renderOrderItems = () => {
         orderItemsBody.innerHTML = '';
-        if (Object.keys(orderItems).length === 0) {{
+        if (Object.keys(orderItems).length === 0) {
             orderItemsBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Додайте страви до замовлення</td></tr>';
-        }} else {{
-            for (const id in orderItems) {{
+        } else {
+            for (const id in orderItems) {
                 const item = orderItems[id];
                 const row = document.createElement('tr');
                 row.dataset.id = id;
                 row.innerHTML = `
-                    <td>${{item.name}}</td>
-                    <td>${{item.price.toFixed(2)}} грн</td>
-                    <td><input type="number" class="quantity-input" value="${{item.quantity}}" min="1" data-id="${{id}}"></td>
-                    <td>${{(item.price * item.quantity).toFixed(2)}} грн</td>
-                    <td class="actions"><button type="button" class="remove-item-btn" data-id="${{id}}">&times;</button></td>
+                    <td>${item.name}</td>
+                    <td>${item.price.toFixed(2)} грн</td>
+                    <td><input type="number" class="quantity-input" value="${item.quantity}" min="1" data-id="${id}"></td>
+                    <td>${(item.price * item.quantity).toFixed(2)} грн</td>
+                    <td class="actions"><button type="button" class="remove-item-btn" data-id="${id}">&times;</button></td>
                 `;
                 orderItemsBody.appendChild(row);
-            }}
-        }}
+            }
+        }
         calculateTotals();
-    }};
+    };
 
-    const addProductToOrder = (product) => {{
-        if (orderItems[product.id]) {{
+    const addProductToOrder = (product) => {
+        if (orderItems[product.id]) {
             orderItems[product.id].quantity++;
-        }} else {{
-            orderItems[product.id] = {{ name: product.name, price: product.price, quantity: 1 }};
-        }}
+        } else {
+            orderItems[product.id] = { name: product.name, price: product.price, quantity: 1 };
+        }
         renderOrderItems();
-    }};
+    };
 
     // Modal Logic
-    const renderProductsInModal = (products) => {{
+    const renderProductsInModal = (products) => {
         productListContainer.innerHTML = '';
-        products.forEach(p => {{
+        products.forEach(p => {
             const itemEl = document.createElement('div');
             itemEl.className = 'product-list-item';
             itemEl.dataset.id = p.id;
             itemEl.innerHTML = `
-                <div><h5>${{p.name}}</h5><p>${{p.category}}</p></div>
-                <p><strong>${{p.price.toFixed(2)}} грн</strong></p>`;
+                <div><h5>${p.name}</h5><p>${p.category}</p></div>
+                <p><strong>${p.price.toFixed(2)} грн</strong></p>`;
             productListContainer.appendChild(itemEl);
-        }});
-    }};
+        });
+    };
 
-    const openProductModal = async () => {{
+    const openProductModal = async () => {
         productListContainer.innerHTML = '<p>Завантаження страв...</p>';
         productModal.classList.add('active');
-        if (allProducts.length === 0) {{
+        if (allProducts.length === 0) {
              allProducts = await fetchAllProducts();
-        }}
+        }
         renderProductsInModal(allProducts);
-    }};
+    };
 
-    const closeProductModal = () => {{
+    const closeProductModal = () => {
         productModal.classList.remove('active');
         productSearchInput.value = '';
-    }};
+    };
 
-    // Form Initialization
-    const initializeForm = () => {{
-        if (typeof window.initialOrderData === 'undefined') {{
-            console.error("Initial order data (window.initialOrderData) is not defined!");
-            // Установка значений по умолчанию для новой формы, если данных нет
+    // ИСПРАВЛЕНО: Функция инициализации теперь принимает данные как аргумент
+    window.initializeForm = (data) => {
+        if (!data) {
+            console.error("Initial order data is not provided!");
+            // Установка значений по умолчанию для новой формы
             orderForm.action = '/api/admin/order/new';
             orderForm.querySelector('button[type="submit"]').textContent = 'Створити замовлення';
+            orderItems = {};
+            renderOrderItems();
             return;
-        }}
-        
-        const data = window.initialOrderData;
+        }
+
         orderForm.action = data.action;
         orderForm.querySelector('button[type="submit"]').textContent = data.submit_text;
 
-        if (data.form_values) {{
+        if (data.form_values) {
             document.getElementById('phone_number').value = data.form_values.phone_number || '';
             document.getElementById('customer_name').value = data.form_values.customer_name || '';
             document.getElementById('delivery_type').value = data.form_values.is_delivery ? "delivery" : "pickup";
             document.getElementById('address').value = data.form_values.address || '';
             deliveryTypeSelect.dispatchEvent(new Event('change'));
-        }}
-        
-        orderItems = data.items || {{}};
+        }
+
+        orderItems = data.items || {};
         renderOrderItems();
-    }};
+    };
 
     // Event Listeners
-    deliveryTypeSelect.addEventListener('change', (e) => {{
+    deliveryTypeSelect.addEventListener('change', (e) => {
         addressGroup.style.display = e.target.value === 'delivery' ? 'block' : 'none';
-    }});
+    });
 
     addProductBtn.addEventListener('click', openProductModal);
     closeModalBtn.addEventListener('click', closeProductModal);
-    productModal.addEventListener('click', (e) => {{ if (e.target === productModal) closeProductModal(); }});
+    productModal.addEventListener('click', (e) => { if (e.target === productModal) closeProductModal(); });
 
-    productSearchInput.addEventListener('input', (e) => {{
+    productSearchInput.addEventListener('input', (e) => {
         const searchTerm = e.target.value.toLowerCase();
         const filteredProducts = allProducts.filter(p => p.name.toLowerCase().includes(searchTerm));
         renderProductsInModal(filteredProducts);
-    }});
-    
-    productListContainer.addEventListener('click', (e) => {{
+    });
+
+    productListContainer.addEventListener('click', (e) => {
         const productEl = e.target.closest('.product-list-item');
-        if (productEl) {{
+        if (productEl) {
             const product = allProducts.find(p => p.id == productEl.dataset.id);
             if (product) addProductToOrder(product);
             closeProductModal();
-        }}
-    }});
-    
-    orderItemsBody.addEventListener('change', (e) => {{
-        if (e.target.classList.contains('quantity-input')) {{
+        }
+    });
+
+    orderItemsBody.addEventListener('change', (e) => {
+        if (e.target.classList.contains('quantity-input')) {
             const id = e.target.dataset.id;
             const newQuantity = parseInt(e.target.value, 10);
-            if (newQuantity > 0) orderItems[id].quantity = newQuantity;
-            else delete orderItems[id];
+            if (newQuantity > 0) {
+                if (orderItems[id]) orderItems[id].quantity = newQuantity;
+            } else {
+                 delete orderItems[id];
+            }
             renderOrderItems();
-        }}
-    }});
+        }
+    });
 
-    orderItemsBody.addEventListener('click', (e) => {{
-        if (e.target.classList.contains('remove-item-btn')) {{
+    orderItemsBody.addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-item-btn')) {
             delete orderItems[e.target.dataset.id];
             renderOrderItems();
-        }}
-    }});
+        }
+    });
 
-    orderForm.addEventListener('submit', async (e) => {{
+    orderForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const saveButton = orderForm.querySelector('button[type="submit"]');
         const originalButtonText = saveButton.textContent;
         saveButton.textContent = 'Збереження...';
         saveButton.disabled = true;
 
-        const payload = {{
+        const payload = {
             customer_name: document.getElementById('customer_name').value,
             phone_number: document.getElementById('phone_number').value,
             delivery_type: document.getElementById('delivery_type').value,
             address: document.getElementById('address').value,
             items: orderItems
-        }};
+        };
 
-        try {{
-            const response = await fetch(orderForm.action, {{
+        try {
+            const response = await fetch(orderForm.action, {
                 method: 'POST',
-                headers: {{ 'Content-Type': 'application/json', 'Accept': 'application/json' }},
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify(payload)
-            }});
+            });
             const result = await response.json();
-            if (response.ok) {{
+            if (response.ok) {
                 alert(result.message);
                 window.location.href = result.redirect_url || '/admin/orders';
-            }} else {{
-                alert(`Помилка: ${{result.detail || 'Невідома помилка'}}`);
+            } else {
+                alert(`Помилка: ${result.detail || 'Невідома помилка'}`);
                 saveButton.textContent = originalButtonText;
                 saveButton.disabled = false;
-            }}
-        }} catch (error) {{
+            }
+        } catch (error) {
             console.error("Submit error:", error);
             alert('Помилка мережі. Не вдалося зберегти замовлення.');
             saveButton.textContent = originalButtonText;
             saveButton.disabled = false;
-        }}
-    }});
+        }
+    });
 
-    // Initial Call
-    initializeForm();
-}});
+    // Initial Call for new order page (if no data is injected)
+    if (typeof window.initializeForm === 'function' && !window.initializeForm.invoked) {
+        // Проверяем, была ли уже вызвана функция, чтобы избежать двойной инициализации
+        const newOrderData = {
+             items: {},
+             action: '/api/admin/order/new',
+             submit_text: 'Створити замовлення',
+             form_values: null
+        };
+        window.initializeForm(newOrderData);
+        window.initializeForm.invoked = true;
+    }
+});
 </script>
 """
 
