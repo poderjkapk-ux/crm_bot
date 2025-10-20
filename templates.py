@@ -552,8 +552,11 @@ document.addEventListener('DOMContentLoaded', () => {{
 
     // Form Initialization
     const initializeForm = () => {{
-        if (!window.initialOrderData) {{
-            console.error("Initial order data is not defined!");
+        if (typeof window.initialOrderData === 'undefined') {{
+            console.error("Initial order data (window.initialOrderData) is not defined!");
+            // Установка значений по умолчанию для новой формы, если данных нет
+            orderForm.action = '/api/admin/order/new';
+            orderForm.querySelector('button[type="submit"]').textContent = 'Створити замовлення';
             return;
         }}
         
@@ -617,6 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {{
     orderForm.addEventListener('submit', async (e) => {{
         e.preventDefault();
         const saveButton = orderForm.querySelector('button[type="submit"]');
+        const originalButtonText = saveButton.textContent;
         saveButton.textContent = 'Збереження...';
         saveButton.disabled = true;
 
@@ -640,13 +644,13 @@ document.addEventListener('DOMContentLoaded', () => {{
                 window.location.href = result.redirect_url || '/admin/orders';
             }} else {{
                 alert(`Помилка: ${{result.detail || 'Невідома помилка'}}`);
-                saveButton.textContent = data.submit_text;
+                saveButton.textContent = originalButtonText;
                 saveButton.disabled = false;
             }}
         }} catch (error) {{
             console.error("Submit error:", error);
             alert('Помилка мережі. Не вдалося зберегти замовлення.');
-            saveButton.textContent = data.submit_text;
+            saveButton.textContent = originalButtonText;
             saveButton.disabled = false;
         }}
     }});
