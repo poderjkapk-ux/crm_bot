@@ -326,6 +326,7 @@ ADMIN_HTML_TEMPLATE = """
 </html>
 """
 
+# ИСПРАВЛЕННЫЙ ШАБЛОН ДЛЯ ФОРМЫ ЗАКАЗА
 ADMIN_ORDER_FORM_BODY = """
 <style>
     .form-grid {{
@@ -353,7 +354,6 @@ ADMIN_ORDER_FORM_BODY = """
     .totals-summary div {{ margin-bottom: 0.5rem; }}
     .totals-summary .total {{ font-size: 1.4rem; color: var(--primary-color); }}
     
-    /* Product Search Modal Styles */
     #product-list {{
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -416,7 +416,7 @@ ADMIN_ORDER_FORM_BODY = """
                     </tr>
                 </thead>
                 <tbody id="order-items-body">
-                    </tbody>
+                </tbody>
             </table>
         </div>
         <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 1rem;">
@@ -446,7 +446,7 @@ ADMIN_ORDER_FORM_BODY = """
                 <input type="text" id="product-search-input" placeholder="Пошук страви за назвою...">
             </div>
             <div id="product-list">
-                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -454,7 +454,7 @@ ADMIN_ORDER_FORM_BODY = """
 <script>
 document.addEventListener('DOMContentLoaded', () => {{
     // State
-    let orderItems = {{}}; // {{ productId: {{ name, price, quantity }} }}
+    let orderItems = {{}}; 
     let allProducts = [];
 
     // Element References
@@ -463,22 +463,17 @@ document.addEventListener('DOMContentLoaded', () => {{
     const grandTotalEl = document.getElementById('grand-total');
     const deliveryTypeSelect = document.getElementById('delivery_type');
     const addressGroup = document.getElementById('address-group');
-    
-    // Modal References
-    const productModal = document.getElementById('product-modal');
     const addProductBtn = document.getElementById('add-product-btn');
+    const productModal = document.getElementById('product-modal');
     const closeModalBtn = document.getElementById('close-modal-btn');
     const productListContainer = document.getElementById('product-list');
     const productSearchInput = document.getElementById('product-search-input');
-
-    // --- API Functions ---
+    
+    // API Function
     const fetchAllProducts = async () => {{
         try {{
             const response = await fetch('/api/admin/products');
-            if (!response.ok) {{
-                alert('Не вдалося завантажити список страв.');
-                return [];
-            }}
+            if (!response.ok) throw new Error('Failed to fetch products');
             return await response.json();
         }} catch (error) {{
             console.error("Fetch products error:", error);
@@ -487,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {{
         }}
     }};
     
-    // --- Core Logic ---
+    // Core Logic
     const calculateTotals = () => {{
         let currentTotal = 0;
         for (const id in orderItems) {{
@@ -517,26 +512,17 @@ document.addEventListener('DOMContentLoaded', () => {{
         }}
         calculateTotals();
     }};
-    
-    window.setInitialOrderItems = (initialItems) => {{
-        orderItems = initialItems;
-        renderOrderItems();
-    }};
 
     const addProductToOrder = (product) => {{
         if (orderItems[product.id]) {{
             orderItems[product.id].quantity++;
         }} else {{
-            orderItems[product.id] = {{
-                name: product.name,
-                price: product.price,
-                quantity: 1,
-            }};
+            orderItems[product.id] = {{ name: product.name, price: product.price, quantity: 1 }};
         }}
         renderOrderItems();
     }};
 
-    // --- Modal Logic ---
+    // Modal Logic
     const renderProductsInModal = (products) => {{
         productListContainer.innerHTML = '';
         products.forEach(p => {{
@@ -544,12 +530,8 @@ document.addEventListener('DOMContentLoaded', () => {{
             itemEl.className = 'product-list-item';
             itemEl.dataset.id = p.id;
             itemEl.innerHTML = `
-                <div>
-                    <h5>${{p.name}}</h5>
-                    <p>${{p.category}}</p>
-                </div>
-                <p><strong>${{p.price.toFixed(2)}} грн</strong></p>
-            `;
+                <div><h5>${{p.name}}</h5><p>${{p.category}}</p></div>
+                <p><strong>${{p.price.toFixed(2)}} грн</strong></p>`;
             productListContainer.appendChild(itemEl);
         }});
     }};
@@ -568,16 +550,37 @@ document.addEventListener('DOMContentLoaded', () => {{
         productSearchInput.value = '';
     }};
 
-    // --- Event Listeners ---
+    // Form Initialization
+    const initializeForm = () => {{
+        if (!window.initialOrderData) {{
+            console.error("Initial order data is not defined!");
+            return;
+        }}
+        
+        const data = window.initialOrderData;
+        orderForm.action = data.action;
+        orderForm.querySelector('button[type="submit"]').textContent = data.submit_text;
+
+        if (data.form_values) {{
+            document.getElementById('phone_number').value = data.form_values.phone_number || '';
+            document.getElementById('customer_name').value = data.form_values.customer_name || '';
+            document.getElementById('delivery_type').value = data.form_values.is_delivery ? "delivery" : "pickup";
+            document.getElementById('address').value = data.form_values.address || '';
+            deliveryTypeSelect.dispatchEvent(new Event('change'));
+        }}
+        
+        orderItems = data.items || {{}};
+        renderOrderItems();
+    }};
+
+    // Event Listeners
     deliveryTypeSelect.addEventListener('change', (e) => {{
         addressGroup.style.display = e.target.value === 'delivery' ? 'block' : 'none';
     }});
 
     addProductBtn.addEventListener('click', openProductModal);
     closeModalBtn.addEventListener('click', closeProductModal);
-    productModal.addEventListener('click', (e) => {{
-        if (e.target === productModal) closeProductModal();
-    }});
+    productModal.addEventListener('click', (e) => {{ if (e.target === productModal) closeProductModal(); }});
 
     productSearchInput.addEventListener('input', (e) => {{
         const searchTerm = e.target.value.toLowerCase();
@@ -588,11 +591,8 @@ document.addEventListener('DOMContentLoaded', () => {{
     productListContainer.addEventListener('click', (e) => {{
         const productEl = e.target.closest('.product-list-item');
         if (productEl) {{
-            const productId = productEl.dataset.id;
-            const product = allProducts.find(p => p.id == productId);
-            if (product) {{
-                addProductToOrder(product);
-            }}
+            const product = allProducts.find(p => p.id == productEl.dataset.id);
+            if (product) addProductToOrder(product);
             closeProductModal();
         }}
     }});
@@ -601,19 +601,15 @@ document.addEventListener('DOMContentLoaded', () => {{
         if (e.target.classList.contains('quantity-input')) {{
             const id = e.target.dataset.id;
             const newQuantity = parseInt(e.target.value, 10);
-            if (newQuantity > 0) {{
-                orderItems[id].quantity = newQuantity;
-            }} else {{
-                delete orderItems[id];
-            }}
+            if (newQuantity > 0) orderItems[id].quantity = newQuantity;
+            else delete orderItems[id];
             renderOrderItems();
         }}
     }});
 
     orderItemsBody.addEventListener('click', (e) => {{
         if (e.target.classList.contains('remove-item-btn')) {{
-            const id = e.target.dataset.id;
-            delete orderItems[id];
+            delete orderItems[e.target.dataset.id];
             renderOrderItems();
         }}
     }});
@@ -644,19 +640,19 @@ document.addEventListener('DOMContentLoaded', () => {{
                 window.location.href = result.redirect_url || '/admin/orders';
             }} else {{
                 alert(`Помилка: ${{result.detail || 'Невідома помилка'}}`);
-                saveButton.textContent = 'Зберегти замовлення';
+                saveButton.textContent = data.submit_text;
                 saveButton.disabled = false;
             }}
         }} catch (error) {{
             console.error("Submit error:", error);
             alert('Помилка мережі. Не вдалося зберегти замовлення.');
-            saveButton.textContent = 'Зберегти замовлення';
+            saveButton.textContent = data.submit_text;
             saveButton.disabled = false;
         }}
     }});
 
-    // Initial render
-    renderOrderItems();
+    // Initial Call
+    initializeForm();
 }});
 </script>
 """
