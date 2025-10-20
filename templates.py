@@ -1,5 +1,6 @@
 # templates.py
 
+# Замените старую переменную ADMIN_HTML_TEMPLATE на эту:
 ADMIN_HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="uk">
@@ -17,7 +18,7 @@ ADMIN_HTML_TEMPLATE = """
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/modal_styles.css">
+    
     <style>
         :root {{
             --primary-color: #2563eb;
@@ -217,6 +218,7 @@ ADMIN_HTML_TEMPLATE = """
         .nav-tabs a:hover {{ color: var(--primary-color); }}
         .nav-tabs a.active {{ background-color: var(--primary-color); color: white !important; }}
         
+        /* --- Modal Styles --- */
         .modal-overlay {{
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.6); z-index: 2000;
@@ -326,6 +328,7 @@ ADMIN_HTML_TEMPLATE = """
 </html>
 """
 
+# ... (остальной код в файле templates.py остается без изменений) ...
 # ИСПРАВЛЕННЫЙ ШАБЛОН ДЛЯ ФОРМЫ ЗАКАЗА
 ADMIN_ORDER_FORM_BODY = """
 <style>
