@@ -1594,18 +1594,19 @@ async def api_get_products(session: AsyncSession = Depends(get_db_session), user
 
 @app.get("/admin/order/new", response_class=HTMLResponse)
 async def get_add_order_form(username: str = Depends(check_credentials)):
-    # ИСПРАВЛЕНО: Передаем данные для нового заказа
+    # ИСПРАВЛЕНО: Создаем безопасный объект для передачи в JS
+    initial_data = {
+        "items": {},
+        "action": "/api/admin/order/new",
+        "submit_text": "Створити замовлення",
+        "form_values": None
+    }
     script_data_injection = f"""
     <script>
-        window.initialOrderData = {{
-            items: {{}},
-            action: '/api/admin/order/new',
-            submit_text: 'Створити замовлення',
-            form_values: null
-        }};
+        window.initialOrderData = {json.dumps(initial_data)};
     </script>
     """
-    body = script_data_injection + ADMIN_ORDER_FORM_BODY
+    body = ADMIN_ORDER_FORM_BODY + script_data_injection
     return HTMLResponse(ADMIN_HTML_TEMPLATE.format(title="Нове замовлення", body=body, orders_active="active", **{k: "" for k in ["clients_active", "main_active", "products_active", "categories_active", "statuses_active", "settings_active", "employees_active", "reports_active", "menu_active"]}))
 
 @app.get("/admin/order/edit/{order_id}", response_class=HTMLResponse)
@@ -1622,24 +1623,26 @@ async def get_edit_order_form(order_id: int, session: AsyncSession = Depends(get
             if p := db_products_map.get(name):
                 initial_items[p.id] = {"name": p.name, "price": p.price, "quantity": quantity}
 
-    # ИСПРАВЛЕНО: Передаем данные для существующего заказа
+    # ИСПРАВЛЕНО: Создаем безопасный объект для передачи в JS
+    initial_data = {
+        "items": initial_items,
+        "action": f"/api/admin/order/edit/{order_id}",
+        "submit_text": "Зберегти зміни",
+        "form_values": {
+            "phone_number": order.phone_number or "",
+            "customer_name": order.customer_name or "",
+            "is_delivery": order.is_delivery,
+            "address": order.address or ""
+        }
+    }
     script_data_injection = f"""
     <script>
-        window.initialOrderData = {{
-            items: {json.dumps(initial_items)},
-            action: '/api/admin/order/edit/{order_id}',
-            submit_text: 'Зберегти зміни',
-            form_values: {{
-                phone_number: "{order.phone_number or ''}",
-                customer_name: "{order.customer_name or ''}",
-                is_delivery: {"true" if order.is_delivery else "false"},
-                address: `{order.address or ''}`
-            }}
-        }};
+        window.initialOrderData = {json.dumps(initial_data)};
     </script>
     """
-    body = script_data_injection + ADMIN_ORDER_FORM_BODY
+    body = ADMIN_ORDER_FORM_BODY + script_data_injection
     return HTMLResponse(ADMIN_HTML_TEMPLATE.format(title=f"Редагування замовлення #{order.id}", body=body, orders_active="active", **{k: "" for k in ["clients_active", "main_active", "products_active", "categories_active", "statuses_active", "settings_active", "employees_active", "reports_active", "menu_active"]}))
+
 
 async def _process_and_save_order(order: Order, data: dict, session: AsyncSession):
     """
