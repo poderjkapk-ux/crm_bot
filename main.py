@@ -1594,16 +1594,18 @@ async def api_get_products(session: AsyncSession = Depends(get_db_session), user
 
 @app.get("/admin/order/new", response_class=HTMLResponse)
 async def get_add_order_form(username: str = Depends(check_credentials)):
-    script_injection = f"""
+    # ИСПРАВЛЕНО: Передаем данные для нового заказа
+    script_data_injection = f"""
     <script>
-        document.addEventListener('DOMContentLoaded', () => {{
-            const form = document.getElementById('order-form');
-            form.action = '/api/admin/order/new';
-            form.querySelector('button[type="submit"]').textContent = 'Створити замовлення';
-        }});
+        window.initialOrderData = {{
+            items: {{}},
+            action: '/api/admin/order/new',
+            submit_text: 'Створити замовлення',
+            form_values: null
+        }};
     </script>
     """
-    body = ADMIN_ORDER_FORM_BODY + script_injection
+    body = script_data_injection + ADMIN_ORDER_FORM_BODY
     return HTMLResponse(ADMIN_HTML_TEMPLATE.format(title="Нове замовлення", body=body, orders_active="active", **{k: "" for k in ["clients_active", "main_active", "products_active", "categories_active", "statuses_active", "settings_active", "employees_active", "reports_active", "menu_active"]}))
 
 @app.get("/admin/order/edit/{order_id}", response_class=HTMLResponse)
@@ -1620,23 +1622,23 @@ async def get_edit_order_form(order_id: int, session: AsyncSession = Depends(get
             if p := db_products_map.get(name):
                 initial_items[p.id] = {"name": p.name, "price": p.price, "quantity": quantity}
 
-    script_injection = f"""
+    # ИСПРАВЛЕНО: Передаем данные для существующего заказа
+    script_data_injection = f"""
     <script>
-        document.addEventListener('DOMContentLoaded', () => {{
-            document.getElementById('phone_number').value = "{order.phone_number or ''}";
-            document.getElementById('customer_name').value = "{order.customer_name or ''}";
-            document.getElementById('delivery_type').value = "{"delivery" if order.is_delivery else "pickup"}";
-            document.getElementById('address').value = `{order.address or ''}`;
-            document.getElementById('delivery_type').dispatchEvent(new Event('change'));
-
-            const form = document.getElementById('order-form');
-            form.action = '/api/admin/order/edit/{order_id}';
-
-            window.setInitialOrderItems({json.dumps(initial_items)});
-        }});
+        window.initialOrderData = {{
+            items: {json.dumps(initial_items)},
+            action: '/api/admin/order/edit/{order_id}',
+            submit_text: 'Зберегти зміни',
+            form_values: {{
+                phone_number: "{order.phone_number or ''}",
+                customer_name: "{order.customer_name or ''}",
+                is_delivery: {"true" if order.is_delivery else "false"},
+                address: `{order.address or ''}`
+            }}
+        }};
     </script>
     """
-    body = ADMIN_ORDER_FORM_BODY + script_injection
+    body = script_data_injection + ADMIN_ORDER_FORM_BODY
     return HTMLResponse(ADMIN_HTML_TEMPLATE.format(title=f"Редагування замовлення #{order.id}", body=body, orders_active="active", **{k: "" for k in ["clients_active", "main_active", "products_active", "categories_active", "statuses_active", "settings_active", "employees_active", "reports_active", "menu_active"]}))
 
 async def _process_and_save_order(order: Order, data: dict, session: AsyncSession):
@@ -1702,13 +1704,15 @@ async def _process_and_save_order(order: Order, data: dict, session: AsyncSessio
 
 
 @app.post("/api/admin/order/new", response_class=JSONResponse)
-async def api_create_order(data: dict = Body(...), session: AsyncSession = Depends(get_db_session), username: str = Depends(check_credentials)):
+async def api_create_order(request: Request, session: AsyncSession = Depends(get_db_session), username: str = Depends(check_credentials)):
+    data = await request.json()
     new_order = Order()
     await _process_and_save_order(new_order, data, session)
     return JSONResponse(content={"message": "Замовлення створено успішно", "redirect_url": "/admin/orders"})
 
 @app.post("/api/admin/order/edit/{order_id}", response_class=JSONResponse)
-async def api_update_order(order_id: int, data: dict = Body(...), session: AsyncSession = Depends(get_db_session), username: str = Depends(check_credentials)):
+async def api_update_order(order_id: int, request: Request, session: AsyncSession = Depends(get_db_session), username: str = Depends(check_credentials)):
+    data = await request.json()
     order = await session.get(Order, order_id)
     if not order: raise HTTPException(404, "Замовлення не знайдено")
     await _process_and_save_order(order, data, session)
@@ -1718,5 +1722,3 @@ async def api_update_order(order_id: int, data: dict = Body(...), session: Async
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
-
